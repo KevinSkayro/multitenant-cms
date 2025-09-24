@@ -10,12 +10,20 @@ import { GenerateTitle, GenerateURL } from '@payloadcms/plugin-seo/types'
 import { FixedToolbarFeature, HeadingFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
 import { searchFields } from '@/search/fieldOverrides'
 import { beforeSyncWithSearch } from '@/search/beforeSync'
+import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
+import type { Config, Page, Post } from '@/payload-types'
+import { isSuperAdmin } from '@/access/isSuperAdmin'
 
-import { Page, Post } from '@/payload-types'
 import { getServerSideURL } from '@/utilities/getURL'
 
-const generateTitle: GenerateTitle<Post | Page> = ({ doc }) => {
-  return doc?.title ? `${doc.title} | Payload Website Template` : 'Payload Website Template'
+const generateTitle: GenerateTitle<Post | Page> = async ({ doc, req }) => {
+  const tenant = await req.payload.find({
+    collection: 'tenants',
+    where: { id: { equals: doc?.tenant } },
+    limit: 1,
+  })
+  const tenantName = tenant?.docs?.[0]?.name || 'Payload'
+  return doc?.title ? `${doc.title} | ${tenantName}` : tenantName
 }
 
 const generateURL: GenerateURL<Post | Page> = ({ doc }) => {
@@ -91,4 +99,22 @@ export const plugins: Plugin[] = [
     },
   }),
   payloadCloudPlugin(),
+
+  multiTenantPlugin<Config>({
+    collections: {
+      pages: {},
+      posts: {},
+      header: {
+        isGlobal: true,
+      },
+      footer: {
+        isGlobal: true,
+      },
+      media: {},
+    },
+    userHasAccessToAllTenants: (user) => isSuperAdmin(user),
+    tenantsArrayField: {
+      includeDefaultField: false,
+    },
+  }),
 ]

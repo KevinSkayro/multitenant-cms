@@ -8,12 +8,18 @@ import { getPayload } from 'payload'
 import React from 'react'
 import PageClient from './page.client'
 
-export const dynamic = 'force-static'
-export const revalidate = 600
+export const dynamic = 'force-dynamic'
 
-export default async function Page() {
+type Args = {
+  params: Promise<{
+    tenant: string
+  }>
+}
+
+export default async function Page({ params: paramsPromise }: Args) {
+  const { tenant } = await paramsPromise
   const payload = await getPayload({ config: configPromise })
-
+  console.log('tenant in posts index', tenant)
   const posts = await payload.find({
     collection: 'posts',
     depth: 1,
@@ -25,6 +31,7 @@ export default async function Page() {
       categories: true,
       meta: true,
     },
+    where: { 'tenant.domain': { equals: tenant } },
   })
 
   return (

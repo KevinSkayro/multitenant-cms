@@ -17,35 +17,48 @@ import { LivePreviewListener } from '@/components/LivePreviewListener'
 
 export async function generateStaticParams() {
   const payload = await getPayload({ config: configPromise })
-  const posts = await payload.find({
-    collection: 'posts',
-    draft: false,
+
+  const tenants = await payload.find({
+    collection: 'tenants',
     limit: 1000,
-    overrideAccess: false,
     pagination: false,
-    select: {
-      slug: true,
-    },
   })
 
-  const params = posts.docs.map(({ slug }) => {
-    return { slug }
-  })
+  const params = await Promise.all(
+    tenants.docs.map(async (tenant) => {
+      const posts = await payload.find({
+        collection: 'posts',
+        draft: false,
+        limit: 1000,
+        pagination: false,
+        select: { slug: true },
+        where: { 'tenant.id': { equals: tenant.id } },
+      })
+      return posts.docs.map(({ slug }) => ({
+        tenant: tenant.domain,
+        slug,
+      }))
+    }),
+  )
 
-  return params
+  return params.flat()
 }
 
 type Args = {
   params: Promise<{
+    tenant: string
     slug?: string
   }>
 }
 
 export default async function Post({ params: paramsPromise }: Args) {
   const { isEnabled: draft } = await draftMode()
-  const { slug = '' } = await paramsPromise
+  const { tenant, slug = '' } = await paramsPromise
   const url = '/posts/' + slug
-  const post = await queryPostBySlug({ slug })
+  const post = await queryPostBySlug({
+    tenantDomain: tenant,
+    slug,
+  })
 
   if (!post) return <PayloadRedirects url={url} />
 
@@ -76,29 +89,29 @@ export default async function Post({ params: paramsPromise }: Args) {
 }
 
 export async function generateMetadata({ params: paramsPromise }: Args): Promise<Metadata> {
-  const { slug = '' } = await paramsPromise
-  const post = await queryPostBySlug({ slug })
+  const { tenant, slug = '' } = await paramsPromise
+  const post = await queryPostBySlug({ tenantDomain: tenant, slug })
 
   return generateMeta({ doc: post })
 }
 
-const queryPostBySlug = cache(async ({ slug }: { slug: string }) => {
-  const { isEnabled: draft } = await draftMode()
+const queryPostBySlug = cache(
+  async ({ tenantDomain, slug }: { tenantDomain: string; slug: string }) => {
+    const { isEnabled: draft } = await draftMode()
 
-  const payload = await getPayload({ config: configPromise })
+    const payload = await getPayload({ config: configPromise })
 
-  const result = await payload.find({
-    collection: 'posts',
-    draft,
-    limit: 1,
-    overrideAccess: draft,
-    pagination: false,
-    where: {
-      slug: {
-        equals: slug,
+    const result = await payload.find({
+      collection: 'posts',
+      draft,
+      limit: 1,
+      overrideAccess: draft,
+      pagination: false,
+      where: {
+        and: [{ slug: { equals: slug } }, { 'tenant.domain': { equals: tenantDomain } }],
       },
-    },
-  })
+    })
 
-  return result.docs?.[0] || null
-})
+    return result.docs?.[0] || null
+  },
+)

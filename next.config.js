@@ -18,6 +18,11 @@ const nextConfig = {
           protocol: url.protocol.replace(':', ''),
         }
       }),
+      {
+        protocol: 'http',
+        hostname: '*.next',
+        port: '3000',
+      },
     ],
   },
   webpack: (webpackConfig) => {
@@ -31,6 +36,32 @@ const nextConfig = {
   },
   reactStrictMode: true,
   redirects,
+
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: '/api/:path*',
+      },
+
+      {
+        source: '/admin/:path*',
+        destination: '/admin/:path*',
+      },
+
+      {
+        source: '/:path*',
+        destination: '/:tenant/:path*',
+
+        has: [
+          {
+            type: 'host',
+            value: '(?<tenant>.*)',
+          },
+        ],
+      },
+    ]
+  },
 }
 
 export default withPayload(nextConfig, { devBundleServerPackages: false })

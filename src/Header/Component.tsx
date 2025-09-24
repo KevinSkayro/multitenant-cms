@@ -1,11 +1,18 @@
 import { HeaderClient } from './Component.client'
-import { getCachedGlobal } from '@/utilities/getGlobals'
+import { getTenantCachedGlobal } from '@/utilities/getTenantGlobals'
 import React from 'react'
 
-import type { Header } from '@/payload-types'
+import type { Header, Tenant } from '@/payload-types'
 
-export async function Header() {
-  const headerData: Header = await getCachedGlobal('header', 1)()
+interface HeaderProps {
+  tenant: Tenant | null
+}
 
-  return <HeaderClient data={headerData} />
+export async function Header({ tenant }: HeaderProps) {
+  if (!tenant) return
+
+  const tenantId = tenant.id
+  const headerData = (await getTenantCachedGlobal('header', 1, tenantId)()) as Header
+
+  return <HeaderClient tenant={tenant} data={headerData} />
 }
